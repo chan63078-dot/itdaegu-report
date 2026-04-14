@@ -321,7 +321,7 @@ function parseRaw(raw){
     if(line.startsWith('★금일 잔액')||line.startsWith('★금일잔액')){sec='잔';continue;}
     if(line.startsWith('★이후잔액')){sec='이';continue;}
     if(/^\[.+\]$/.test(line)||/^\d+\/\d+\/\d+$/.test(line))continue;
-    if(sec==='완'&&line!=='-'){const p=line.split('/');r.완료.push({담당자:p[0]||'',고객:p[1]||'',상태:p[2]||''});}
+    if(sec==='완'&&line!=='-'){const p=line.split('/');r.완료.push({담당자:p[0]||'',고객:p[1]||'',상태:p[2]||'',금액:p[3]||''});}
     if(sec==='상'&&line!=='-'){
       const tm=line.match(/^(\d{1,2}:\d{2})\s+(.+)/);
       let rest=line,time='';
@@ -448,7 +448,7 @@ function sortedDate(arr){return [...arr].sort((a,b)=>{if(!a.날짜&&!b.날짜)re
 
 function buildText(merged,n1,n2){
   let o='★금일완료\n';
-  o+=merged.완료.length?merged.완료.map(r=>`${r.담당자}/${r.고객}/${r.상태}`).join('\n')+'\n':'-\n';
+  o+=merged.완료.length?merged.완료.map(r=>{let l=`${r.담당자}/${r.고객}/${r.상태}`;if(r.금액)l+=`/${r.금액}`;return l;}).join('\n')+'\n':'-\n';
   o+='★금일상담 예정\n';
   const sc=sortedTime(merged.상담예정);
   o+=sc.length?sc.map(r=>{let l=r.시간?r.시간+' ':'';l+=`${r.담당자}/${r.고객}/${r.상태}`;if(r.금액)l+=`/${r.금액}`;if(r.확정)l+=`/${r.확정}`;return l;}).join('\n')+'\n':'-\n';
@@ -463,7 +463,7 @@ function buildText(merged,n1,n2){
 
 /* ══ 최종 출력 생성 ══ */
 function genOutput(allData){
-  let all완=[],all상=[],all이=[];
+  let all완=[],all상=[],all이=[],all잔=[];
   let n1=[0,0,0],n2=[0,0,0];
   TEAMS.forEach(t=>{
     const d=allData[t.id];
@@ -473,6 +473,7 @@ function genOutput(allData){
       all완.push(...(m.data.완료||[]));
       all상.push(...(m.data.상담예정||[]));
       all이.push(...(m.data.이후잔액||[]));
+      if(m.data.잔액)all잔.push(m.data.잔액);
     });
     (d.numRow1||[0,0,0]).forEach((v,i)=>n1[i]+=v||0);
     (d.numRow2||[0,0,0]).forEach((v,i)=>n2[i]+=v||0);
@@ -481,7 +482,7 @@ function genOutput(allData){
   document.getElementById('sumComp').textContent=n1[0];
   document.getElementById('sumExp').textContent=n1[1];
   document.getElementById('sumTot').textContent=n1[2];
-  const merged={완료:all완,상담예정:all상,잔액:'',이후잔액:all이};
+  const merged={완료:all완,상담예정:all상,잔액:all잔.join('\n'),이후잔액:all이};
   return buildText(merged,n1,n2);
 }
 
