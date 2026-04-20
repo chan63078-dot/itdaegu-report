@@ -327,8 +327,10 @@ function parseRaw(raw){
       let rest=line,time='';
       if(tm){time=tm[1];rest=tm[2];}
       const p=rest.split('/');
-      const cf=(p[4]||'').includes('미확정')?'미확정':(p[4]||'').includes('확정')?'확정':'미확정';
-      r.상담예정.push({시간:time,담당자:p[0]||'',고객:p[1]||'',상태:p[2]||'',금액:p[3]||'',확정:cf});
+      let amt3=p[3]||'',cfRaw3=p[4]||'';
+      if(!cfRaw3&&(amt3.includes('미확정')||amt3.includes('확정'))){cfRaw3=amt3;amt3=amt3.replace(/[（(]?(미확정|확정)[）)]/g,'').trim();}
+      const cf=cfRaw3.includes('미확정')?'미확정':cfRaw3.includes('확정')?'확정':'미확정';
+      r.상담예정.push({시간:time,담당자:p[0]||'',고객:p[1]||'',상태:p[2]||'',금액:amt3,확정:cf});
     }
     if(sec==='잔'&&line!=='-')r.잔액=line;
     if(sec==='이'&&line!=='-'){
@@ -336,8 +338,10 @@ function parseRaw(raw){
       let rest=line,date='';
       if(dm){date=dm[1];rest=dm[2];}
       const p=rest.split('/');
-      const cf=(p[4]||'').includes('미확정')?'미확정':(p[4]||'').includes('확정')?'확정':'미확정';
-      r.이후잔액.push({날짜:date,담당자:p[0]||'',고객:p[1]||'',상태:p[2]||'',금액:p[3]||'',확정:cf});
+      let amt4=p[3]||'',cfRaw4=p[4]||'';
+      if(!cfRaw4&&(amt4.includes('미확정')||amt4.includes('확정'))){cfRaw4=amt4;amt4=amt4.replace(/[（(]?(미확정|확정)[）)]/g,'').trim();}
+      const cf=cfRaw4.includes('미확정')?'미확정':cfRaw4.includes('확정')?'확정':'미확정';
+      r.이후잔액.push({날짜:date,담당자:p[0]||'',고객:p[1]||'',상태:p[2]||'',금액:amt4,확정:cf});
     }
   }
   return r;
@@ -469,11 +473,13 @@ function genOutput(allData){
     const d=allData[t.id];
     if(!d)return;
     Object.values(d.members||{}).forEach(m=>{
-      if(!m||!m.data)return;
-      all완.push(...(m.data.완료||[]));
-      all상.push(...(m.data.상담예정||[]));
-      all이.push(...(m.data.이후잔액||[]));
-      if(m.data.잔액)all잔.push(m.data.잔액);
+      if(!m)return;
+      const raw=(m.raw||'').trim();
+      const data=raw?parseRaw(raw):(m.data||{완료:[],상담예정:[],잔액:'',이후잔액:[]});
+      all완.push(...(data.완료||[]));
+      all상.push(...(data.상담예정||[]));
+      all이.push(...(data.이후잔액||[]));
+      if(data.잔액)all잔.push(data.잔액);
     });
     (d.numRow1||[0,0,0]).forEach((v,i)=>n1[i]+=v||0);
     (d.numRow2||[0,0,0]).forEach((v,i)=>n2[i]+=v||0);
