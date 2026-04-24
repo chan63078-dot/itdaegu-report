@@ -149,6 +149,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
       <div class="scard"><div class="sl">📊 완료+예정</div><div class="sv" id="sumTot">0</div></div>
     </div>
 
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:16px;">
+      <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">&#x1F3DB; 국비 (해당 시만 입력)</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="number" id="gNb" inputmode="numeric" placeholder="금액 입력 (만원)" oninput="onNb()"
+          style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);font-size:18px;font-weight:800;padding:10px 12px;text-align:center;outline:none;-webkit-appearance:none;">
+        <button class="btn btn-q btn-sm" onclick="document.getElementById('gNb').value='';onNb()">&#x2715;</button>
+      </div>
+    </div>
+
     <div class="result-card">
       <div class="result-hdr">
         <h2>📋 최종 취합 결과</h2>
@@ -286,7 +295,9 @@ async function loadAllAndRender(){
     all[t.id]=d;
     updateCard(t.id,d);
   }));
-  const txt=genOutput(all);
+  const nb=await dbGet('meta/nb');
+  const nbEl=document.getElementById('gNb');if(nbEl&&nb)nbEl.value=nb;
+  const txt=genOutput(all,nb||0);
   renderOut(txt);
   setLd(false);
   loadHistList();
@@ -450,23 +461,23 @@ function mergeData(dataArr){
 function sortedTime(arr){return [...arr].sort((a,b)=>{if(!a.시간&&!b.시간)return 0;if(!a.시간)return 1;if(!b.시간)return -1;return a.시간.localeCompare(b.시간);});}
 function sortedDate(arr){return [...arr].sort((a,b)=>{if(!a.날짜&&!b.날짜)return 0;if(!a.날짜)return 1;if(!b.날짜)return -1;return a.날짜.replace('.','').localeCompare(b.날짜.replace('.',''),'ko');});}
 
-function buildText(merged,n1,n2){
+function buildText(merged,n1,n2,nb){
   let o='★금일완료\n';
   o+=merged.완료.length?merged.완료.map(r=>{let l=`${r.담당자}/${r.고객}/${r.상태}`;if(r.금액)l+=`/${r.금액}`;return l;}).join('\n')+'\n':'-\n';
   o+='★금일상담 예정\n';
   const sc=sortedTime(merged.상담예정);
-  o+=sc.length?sc.map(r=>{let l=r.시간?r.시간+' ':'';l+=`${r.담당자}/${r.고객}/${r.상태}`;if(r.금액)l+=`/${r.금액}`;if(r.확정)l+=`/${r.확정}`;return l;}).join('\n')+'\n':'-\n';
+  o+=sc.length?sc.map(r=>{let l=r.시간?r.시간+' ':'';l+=`${r.담당자}/${r.고객}/${r.상태}`;if(r.금액)l+=`/${r.금액}`;return l;}).join('\n')+'\n':'-\n';
   o+=`★금일 잔액\n${merged.잔액||'-'}\n`;
   o+='★이후잔액\n';
   const sd=sortedDate(merged.이후잔액);
   if(sd.length){let prev=null;sd.forEach(r=>{if(prev!==null&&r.날짜!==prev)o+='\n';o+=(r.날짜?r.날짜+' ':'')+`${r.담당자}/${r.고객}/${r.상태}/${r.금액}/(${r.확정})\n`;prev=r.날짜;});}
   else o+='-\n';
-  if(n1)o+=`\n[IT대구]\n${n1.join('/')}\n${n2.join('/')}`;
+  if(n1){o+=`\n[IT대구]\n${n1.join('/')}`;if(nb&&nb>0)o+=`\n*국비 ${nb}`;o+=`\n${n2.join('/')}`;};
   return o;
 }
 
 /* ══ 최종 출력 생성 ══ */
-function genOutput(allData){
+function genOutput(allData,nb){
   let all완=[],all상=[],all이=[],all잔=[];
   let n1=[0,0,0],n2=[0,0,0];
   TEAMS.forEach(t=>{
@@ -489,7 +500,7 @@ function genOutput(allData){
   document.getElementById('sumExp').textContent=n1[1];
   document.getElementById('sumTot').textContent=n1[2];
   const merged={완료:all완,상담예정:all상,잔액:all잔.join('\n'),이후잔액:all이};
-  return buildText(merged,n1,n2);
+  return buildText(merged,n1,n2,nb||0);
 }
 
 function renderOut(txt){
@@ -538,6 +549,16 @@ function onNum(){
   schedSave();
 }
 
+let nbTimer=null;
+function onNb(){
+  clearTimeout(nbTimer);
+  nbTimer=setTimeout(async()=>{
+    const v=parseInt(document.getElementById('gNb').value)||0;
+    await dbSet('meta/nb',v>0?v:null);
+    if(!curTeam)loadAllAndRender();
+  },1000);
+}
+
 function setSyncSt(s){
   const dot=document.getElementById('sdot'),lbl=document.getElementById('slbl');
   if(s==='ok'){dot.className='sdot ok';lbl.textContent='저장됨';lbl.style.color='';}
@@ -560,7 +581,8 @@ async function loadHistory(date){
   if(!h){document.getElementById('outBox').innerHTML='<span style="color:var(--muted)">해당 날짜 기록 없음</span>';setLd(false);return;}
   const wrapped={};
   TEAMS.forEach(t=>{wrapped[t.id]=h[t.id]||null;});
-  renderOut(genOutput(wrapped));
+  const nbH=await dbGet(`history/${date}/__nb__`)||await dbGet('meta/nb')||0;
+  renderOut(genOutput(wrapped,nbH));
   setLd(false);
 }
 
