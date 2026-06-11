@@ -251,11 +251,13 @@ function setLd(v){ document.getElementById('ld').classList.toggle('on',v); }
 /* ══ Firebase REST ══ */
 async function dbGet(p){ try{ const r=await fetch(`${DB}/${p}.json`); return await r.json(); }catch{ return null; } }
 async function dbSet(p,d){ try{ await fetch(`${DB}/${p}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); return true; }catch{ return false; } }
+async function dbPatch(p,d,ka){ try{ const r=await fetch(`${DB}/${p}.json`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(d),keepalive:!!ka}); return r.ok; }catch{ return false; } }
 
 /* ══ 라우팅 ══ */
 let curTeam=null, saveTimer=null;
 
 function goMain(){
+  if(saveTimer&&curTeam){clearTimeout(saveTimer);saveTimer=null;saveTeam();}
   document.getElementById('pagMain').classList.add('on');
   document.getElementById('pagTeam').classList.remove('on');
   document.getElementById('backBtn').style.display='none';
@@ -327,10 +329,12 @@ function parseRaw(raw){
   const lines=raw.split('\n').map(l=>l.trim()).filter(l=>l);
   let sec='';
   for(const line of lines){
-    if(line.startsWith('★금일완료')){sec='완';continue;}
-    if(line.startsWith('★금일상담')){sec='상';continue;}
-    if(line.startsWith('★금일 잔액')||line.startsWith('★금일잔액')){sec='잔';continue;}
-    if(line.startsWith('★이후잔액')){sec='이';continue;}
+    const hd=line.replace(/\s+/g,'').replace(/^☆/,'★');
+    if(hd.startsWith('★금일완료')){sec='완';continue;}
+    if(hd.startsWith('★금일상담')){sec='상';continue;}
+    if(hd.startsWith('★금일잔액')){sec='잔';continue;}
+    if(hd.startsWith('★이후잔액')){sec='이';continue;}
+    if(hd.startsWith('★')){sec='';continue;}
     if(/^\[.+\]$/.test(line)||/^\d+\/\d+\/\d+$/.test(line))continue;
     if(sec==='완'&&line!=='-'){const p=line.split('/');r.완료.push({담당자:p[0]||'',고객:p[1]||'',상태:p[2]||'',금액:p[3]||''});}
     if(sec==='상'&&line!=='-'){
@@ -343,7 +347,7 @@ function parseRaw(raw){
       const cf=cfRaw3.includes('미확정')?'미확정':cfRaw3.includes('확정')?'확정':'미확정';
       r.상담예정.push({시간:time,담당자:p[0]||'',고객:p[1]||'',상태:p[2]||'',금액:amt3,확정:cf});
     }
-    if(sec==='잔'&&line!=='-')r.잔액=line;
+    if(sec==='잔'&&line!=='-')r.잔액=r.잔액?r.잔액+'\n'+line:line;
     if(sec==='이'&&line!=='-'){
       const dm=line.match(/^(\d{2}\.\d{2})\s+(.+)/);
       let rest=line,date='';
@@ -373,6 +377,7 @@ async function loadTeamPage(id){
     document.getElementById('nC2').value=n2[1]||'';
     document.getElementById('nC3').value=n2[2]||'';
   }
+  seedLastSaved(d);
   renderPreview();
   setSyncSt('ok');
   setLd(false);
@@ -453,7 +458,7 @@ function mergeData(dataArr){
     m.완료.push(...d.완료);
     m.상담예정.push(...d.상담예정);
     m.이후잔액.push(...d.이후잔액);
-    if(d.잔액&&d.잔액!=='-')m.잔액=d.잔액;
+    if(d.잔액&&d.잔액!=='-')m.잔액=m.잔액?m.잔액+'\n'+d.잔액:d.잔액;
   });
   return m;
 }
@@ -516,31 +521,61 @@ function renderOut(txt){
 /* ══ 저장 ══ */
 function schedSave(){clearTimeout(saveTimer);setSyncSt('wait');saveTimer=setTimeout(saveTeam,1800);}
 
-async function saveTeam(){
-  if(!curTeam)return;
-  const members={};
+let lastSaved={};
+function slotSig(name,raw){return (name||'')+'\u0000'+(raw||'');}
+function seedLastSaved(d){
+  lastSaved={};
+  const mbs=(d&&d.members)||{};
+  for(let i=0;i<MAX_MB;i++){const m=mbs[i]||{};lastSaved['m'+i]=slotSig(m.name,m.raw);}
+  lastSaved.n1=((d&&d.numRow1)||[]).join(',');
+  lastSaved.n2=((d&&d.numRow2)||[]).join(',');
+}
+
+function buildUpd(){
+  const upd={};
   for(let i=0;i<MAX_MB;i++){
     const raw=(document.getElementById('mr-'+i)||{}).value||'';
     const name=(document.getElementById('mn-'+i)||{}).value||'';
-    members[i]={name,raw,data:parseRaw(raw)};
+    if(lastSaved['m'+i]!==slotSig(name,raw))upd['members/'+i]={name,raw,data:parseRaw(raw)};
   }
   const co=parseInt(document.getElementById('nCo').value)||0;
   const ex=parseInt(document.getElementById('nEx').value)||0;
-  const payload={
-    members,
-    numRow1:[co,ex,co+ex],
-    numRow2:[
-      parseInt(document.getElementById('nC1').value)||0,
-      parseInt(document.getElementById('nC2').value)||0,
-      parseInt(document.getElementById('nC3').value)||0,
-    ],
-    updatedAt:toDay()
-  };
-  const ok=await dbSet(`teams/${curTeam}`,payload);
-  if(ok)await dbSet(`history/${toDay()}/${curTeam}`,payload);
-  setSyncSt(ok?'ok':'err');
-  if(ok)toast('💾 저장 완료');
+  const numRow1=[co,ex,co+ex];
+  const numRow2=[
+    parseInt(document.getElementById('nC1').value)||0,
+    parseInt(document.getElementById('nC2').value)||0,
+    parseInt(document.getElementById('nC3').value)||0,
+  ];
+  if(lastSaved.n1!==numRow1.join(','))upd['numRow1']=numRow1;
+  if(lastSaved.n2!==numRow2.join(','))upd['numRow2']=numRow2;
+  return {upd,numRow1,numRow2};
 }
+
+function applySaved(upd,numRow1,numRow2){
+  Object.keys(upd).forEach(k=>{
+    if(k.indexOf('members/')===0){const i=k.split('/')[1];lastSaved['m'+i]=slotSig(upd[k].name,upd[k].raw);}
+  });
+  lastSaved.n1=numRow1.join(',');
+  lastSaved.n2=numRow2.join(',');
+}
+
+async function saveTeam(ka){
+  if(!curTeam)return;
+  const team=curTeam;
+  const {upd,numRow1,numRow2}=buildUpd();
+  if(!Object.keys(upd).length){setSyncSt('ok');return;}
+  upd['updatedAt']=toDay();
+  const ok=await dbPatch(`teams/${team}`,upd,ka);
+  if(ok)await dbPatch(`history/${toDay()}/${team}`,upd,ka);
+  if(ok)applySaved(upd,numRow1,numRow2);
+  setSyncSt(ok?'ok':'err');
+  if(ok&&!ka)toast('\uD83D\uDCBE \uC800\uC7A5 \uC644\uB8CC');
+}
+
+/* \uD398\uC774\uC9C0 \uC774\uD0C8/\uC885\uB8CC \uC2DC \uBBF8\uC800\uC7A5\uBD84 \uC989\uC2DC \uC800\uC7A5 */
+window.addEventListener('pagehide',()=>{
+  if(saveTimer&&curTeam){clearTimeout(saveTimer);saveTimer=null;saveTeam(true);}
+});
 
 function onNum(){
   const c=parseInt(document.getElementById('nCo').value)||0;
