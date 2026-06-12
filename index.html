@@ -257,6 +257,7 @@ async function dbPatch(p,d,ka){ try{ const r=await fetch(`${DB}/${p}.json`,{meth
 let curTeam=null, saveTimer=null;
 
 function goMain(){
+  stopTeamPoll();
   if(saveTimer&&curTeam){clearTimeout(saveTimer);saveTimer=null;saveTeam();}
   document.getElementById('pagMain').classList.add('on');
   document.getElementById('pagTeam').classList.remove('on');
@@ -277,6 +278,7 @@ function goTeam(id){
   document.getElementById('tpTitle').textContent=team.name;
   document.getElementById('fixedBar').style.display='none';
   loadTeamPage(id);
+  startTeamPoll();
 }
 
 /* ══ 메인 ══ */
@@ -583,6 +585,32 @@ async function saveTeam(ka){
 window.addEventListener('pagehide',()=>{
   if(saveTimer&&curTeam){clearTimeout(saveTimer);saveTimer=null;saveTeam(true);}
 });
+
+/* 팀 페이지 실시간 갱신 (15초) — 내가 안 고친 슬롯만 반영 */
+let teamPoll=null;
+function startTeamPoll(){stopTeamPoll();teamPoll=setInterval(pollTeam,15000);}
+function stopTeamPoll(){if(teamPoll){clearInterval(teamPoll);teamPoll=null;}}
+async function pollTeam(){
+  if(!curTeam||document.hidden)return;
+  const d=await dbGet(`teams/${curTeam}`);
+  if(!d)return;
+  const mbs=d.members||{};
+  let changed=0;
+  for(let i=0;i<MAX_MB;i++){
+    const m=mbs[i]||{};
+    const dbSig=slotSig(m.name,m.raw);
+    if(dbSig===lastSaved['m'+i])continue;
+    const ta=document.getElementById('mr-'+i),nm=document.getElementById('mn-'+i);
+    if(!ta||!nm)continue;
+    if(slotSig(nm.value,ta.value)!==lastSaved['m'+i])continue;
+    if(document.activeElement===ta||document.activeElement===nm)continue;
+    nm.value=m.name||'';ta.value=m.raw||'';
+    lastSaved['m'+i]=dbSig;
+    const sl=document.getElementById('slot-'+i);if(sl)sl.classList.toggle('hd',!!(m.raw&&m.raw.trim()));
+    changed++;
+  }
+  if(changed){renderPreview();toast('🔄 다른 기기 수정 '+changed+'건 반영');}
+}
 
 function onNum(){
   const c=parseInt(document.getElementById('nCo').value)||0;
