@@ -477,7 +477,7 @@ function buildText(merged,n1,n2,nb){
   const sd=sortedDate(merged.이후잔액);
   if(sd.length){let prev=null;sd.forEach(r=>{if(prev!==null&&r.날짜!==prev)o+='\n';o+=(r.날짜?r.날짜+' ':'')+`${r.담당자}/${r.고객}/${r.상태}/${r.금액}/(${r.확정})\n`;prev=r.날짜;});}
   else o+='-\n';
-  if(n1){o+=`\n[IT대구]\n${n1.join('/')}`;if(nb&&nb>0)o+=`\n*국비 ${nb}`;o+=`\n${n2.join('/')}`;};
+  if(n1){o+=`\n[IT대구]\n${n1.join('/')}`;o+=`\n${n2.join('/')}`;if(nb&&nb>0)o+=`\n*국비 ${nb}`;};
   return o;
 }
 
