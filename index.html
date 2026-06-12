@@ -324,7 +324,7 @@ function updateCard(id,d){
 
 /* ══ 파싱 ══ */
 function parseRaw(raw){
-  const r={완료:[],상담예정:[],잔액:'',이후잔액:[]};
+  const r={완료:[],상담예정:[],잔액:'',이후잔액:[],미인식:[]};
   if(!raw||!raw.trim())return r;
   const lines=raw.split('\n').map(l=>l.trim()).filter(l=>l);
   let sec='';
@@ -334,7 +334,7 @@ function parseRaw(raw){
     if(hd.startsWith('★금일상담')){sec='상';continue;}
     if(hd.startsWith('★금일잔액')){sec='잔';continue;}
     if(hd.startsWith('★이후잔액')){sec='이';continue;}
-    if(hd.startsWith('★')){sec='';continue;}
+    if(hd.startsWith('★')){r.미인식.push(line);sec='';continue;}
     if(/^\[.+\]$/.test(line)||/^\d+\/\d+\/\d+$/.test(line))continue;
     if(sec==='완'&&line!=='-'){const p=line.split('/');r.완료.push({담당자:p[0]||'',고객:p[1]||'',상태:p[2]||'',금액:p[3]||''});}
     if(sec==='상'&&line!=='-'){
@@ -358,6 +358,7 @@ function parseRaw(raw){
       const cf=cfRaw4.includes('미확정')?'미확정':cfRaw4.includes('확정')?'확정':'미확정';
       r.이후잔액.push({날짜:date,담당자:p[0]||'',고객:p[1]||'',상태:p[2]||'',금액:amt4,확정:cf});
     }
+    if(sec==='')r.미인식.push(line);
   }
   return r;
 }
@@ -440,6 +441,12 @@ function renderPreview(){
   if(!any)return;
   const merged=mergeData(mbs.map(m=>m.data));
   box.textContent=buildText(merged,null,null);
+  const warns=[];
+  mbs.forEach((m,i)=>{((m.data&&m.data.미인식)||[]).forEach(l=>warns.push((i+1)+'번 슬롯: '+l));});
+  let w=document.getElementById('parseWarn');
+  if(!w){w=document.createElement('div');w.id='parseWarn';w.style.cssText='display:none;background:rgba(248,81,73,.12);border:1px solid var(--red);color:var(--red);border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:8px;white-space:pre-wrap;word-break:break-all;';box.parentNode.insertBefore(w,box);}
+  if(warns.length){w.style.display='block';w.textContent='⚠ 인식되지 않은 줄 '+warns.length+'개 — ★제목 오타나 형식을 확인하세요\n'+warns.slice(0,8).join('\n')+(warns.length>8?'\n…외 '+(warns.length-8)+'개':'');}
+  else w.style.display='none';
 }
 
 function getDOMMembers(){
@@ -519,7 +526,7 @@ function renderOut(txt){
 }
 
 /* ══ 저장 ══ */
-function schedSave(){clearTimeout(saveTimer);setSyncSt('wait');saveTimer=setTimeout(saveTeam,1800);}
+function schedSave(){clearTimeout(saveTimer);setSyncSt('wait');saveTimer=setTimeout(()=>{renderPreview();saveTeam();},1800);}
 
 let lastSaved={};
 function slotSig(name,raw){return (name||'')+'\u0000'+(raw||'');}
