@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>IT대구 입금보고 시스템</title>
+<title>AI대구 입금보고 시스템</title>
 <style>
 :root {
   --bg:     #0d1117;
@@ -132,7 +132,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 
 <div class="hdr">
   <button id="backBtn" onclick="goMain()">←</button>
-  <div class="logo" id="hdrTitle">📊 IT대구 입금보고</div>
+  <div class="logo" id="hdrTitle">📊 AI대구 입금보고</div>
   <div class="date-txt" id="hdrDate"></div>
 </div>
 
@@ -262,7 +262,7 @@ function goMain(){
   document.getElementById('pagMain').classList.add('on');
   document.getElementById('pagTeam').classList.remove('on');
   document.getElementById('backBtn').style.display='none';
-  document.getElementById('hdrTitle').textContent='📊 IT대구 입금보고';
+  document.getElementById('hdrTitle').textContent='📊 AI대구 입금보고';
   document.getElementById('fixedBar').style.display='flex';
   curTeam=null;
   loadAllAndRender();
@@ -486,7 +486,7 @@ function buildText(merged,n1,n2,nb){
   const sd=sortedDate(merged.이후잔액);
   if(sd.length){let prev=null;sd.forEach(r=>{if(prev!==null&&r.날짜!==prev)o+='\n';o+=(r.날짜?r.날짜+' ':'')+`${r.담당자}/${r.고객}/${r.상태}/${r.금액}/(${r.확정})\n`;prev=r.날짜;});}
   else o+='-\n';
-  if(n1){o+=`\n[IT대구]\n${n1.join('/')}`;o+=`\n${n2.join('/')}`;if(nb&&nb>0)o+=`\n*국비 ${nb}`;};
+  if(n1){o+=`\n[AI대구]\n${n1.join('/')}`;o+=`\n${n2.join('/')}`;if(nb&&nb>0)o+=`\n*국비 ${nb}`;};
   return o;
 }
 
@@ -522,7 +522,7 @@ function renderOut(txt){
   if(!txt.trim()){box.innerHTML='<span style="color:var(--muted)">데이터 없음</span>';return;}
   box.innerHTML=txt
     .replace(/★[^\n]+/g,m=>`<span class="s">${m}</span>`)
-    .replace(/\[IT대구\]/g,m=>`<span class="t">${m}</span>`)
+    .replace(/\[AI대구\]/g,m=>`<span class="t">${m}</span>`)
     .replace(/\(확정\)/g,'<span class="g">(확정)</span>')
     .replace(/\(미확정\)/g,'<span class="r">(미확정)</span>');
 }
