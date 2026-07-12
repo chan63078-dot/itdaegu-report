@@ -272,7 +272,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
           <code>날짜/직원/고객/금액/상태(비율)</code><br>
           · 날짜는 <code>07.10</code> 형식<br>
           <br>
-          <span style="color:var(--yellow)">※ 항목은 반드시 <code>/</code>로 구분하세요. ★제목 줄은 그대로 두고, 형식에 맞지 않으면 미인식으로 빠집니다.</span>
+          <span style="color:var(--yellow)">※ 칸 구분은 <code>/</code> 또는 <b>공백</b> 둘 다 됩니다. ★제목 줄은 그대로 두세요.</span>
         </div>
       </div>
     </div>
@@ -437,20 +437,23 @@ function parseRaw(raw){
     if(/^\*/.test(line)||/^(상담|내일|모레)\s/.test(line))continue;
     if(line==='-')continue;
 
-    const p=line.split('/').map(s=>s.trim());
+    /* 공백과 / 를 같은 구분자로 취급 → "11:00 서창규/방진영/단과" 도 정상 인식 */
+    const cut=l=>l.split(/[\/\s]+/).map(s=>s.trim()).filter(s=>s!=='');
 
     if(sec==='완'){
       /* 상태/직원/고객/금액  (금액 생략 가능) */
+      const p=cut(line);
       if(p.length<3){r.미인식.push(line);continue;}
       r.완료.push({상태:p[0]||'',직원:p[1]||'',고객:p[2]||'',금액:p[3]||''});
     }
     else if(sec==='예'){
       /* 시간/직원/고객/사이즈            → 상담
          시간/직원/고객/금액/상태(비율)   → 잔액 또는 재상담 */
+      const p=cut(line);
       if(p.length<4){r.미인식.push(line);continue;}
       const 시간=p[0]||'', 직원=p[1]||'', 고객=p[2]||'';
       if(p.length>=5&&p[4]){
-        const st=p[4];
+        const st=p.slice(4).join(' ');
         const 구분=st.includes('잔액')?'잔액':'재상담';
         r.예정.push({구분,시간,직원,고객,금액:p[3]||'',상태:st});
       }else{
@@ -459,8 +462,9 @@ function parseRaw(raw){
     }
     else if(sec==='이'){
       /* 날짜/직원/고객/금액/상태(비율) */
+      const p=cut(line);
       if(p.length<4){r.미인식.push(line);continue;}
-      r.이후.push({날짜:p[0]||'',직원:p[1]||'',고객:p[2]||'',금액:p[3]||'',상태:p[4]||''});
+      r.이후.push({날짜:p[0]||'',직원:p[1]||'',고객:p[2]||'',금액:p[3]||'',상태:p.slice(4).join(' ')});
     }
     else r.미인식.push(line);
   }
