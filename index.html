@@ -254,7 +254,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 <span class="s">★이후 잔액 및 추가</span>
 07.10/김병로/김승완/62/미등록(50%)
 07.13/김민주/하인경/25(AI)/미등록(90%)
-07.14/김민주/강민성/120/추가(70%)</div>
+07.14/김민주/강민성/120/추가(70%)
+
+<span class="s">★환불 예정건</span>
+07.22/박진우/이혜수/96</div>
         <div class="ex-rule">
           <b>★금일완료</b><br>
           <code>상태/직원/고객/금액</code><br>
@@ -271,6 +274,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
           <b>★이후 잔액 및 추가</b><br>
           <code>날짜/직원/고객/금액/상태(비율)</code><br>
           · 날짜는 <code>07.10</code> 형식<br>
+          <br>
+          <b>★환불 예정건</b><br>
+          <code>날짜/직원/고객/금액</code><br>
           <br>
           <span style="color:var(--yellow)">※ 칸 구분은 <code>/</code> 또는 <b>공백</b> 둘 다 됩니다. ★제목 줄은 그대로 두세요.</span>
         </div>
@@ -421,7 +427,7 @@ function updateCard(id,d){
 const DONE_ORDER=['결제완료','등록완료','미등록'];
 
 function parseRaw(raw){
-  const r={완료:[],예정:[],이후:[],미인식:[]};
+  const r={완료:[],예정:[],이후:[],환불:[],미인식:[]};
   if(!raw||!raw.trim())return r;
   const lines=raw.split('\n').map(l=>l.trim()).filter(l=>l);
   let sec='';
@@ -429,6 +435,7 @@ function parseRaw(raw){
     const hd=line.replace(/\s+/g,'').replace(/^☆/,'★');
     if(hd.startsWith('★금일완료')){sec='완';continue;}
     if(hd.startsWith('★금일예정')||hd.startsWith('★금일상담')||hd.startsWith('★금일잔액')){sec='예';continue;}
+    if(hd.startsWith('★환불')){sec='환';continue;}
     if(hd.startsWith('★이후')){sec='이';continue;}
     if(hd.startsWith('★')){r.미인식.push(line);sec='';continue;}
     /* 출력물을 그대로 붙여넣은 경우 대비: 구획 라벨·헤더 줄 무시 */
@@ -465,6 +472,12 @@ function parseRaw(raw){
       const p=cut(line);
       if(p.length<4){r.미인식.push(line);continue;}
       r.이후.push({날짜:p[0]||'',직원:p[1]||'',고객:p[2]||'',금액:p[3]||'',상태:p.slice(4).join(' ')});
+    }
+    else if(sec==='환'){
+      /* 날짜/직원/고객/금액 */
+      const p=cut(line);
+      if(p.length<3){r.미인식.push(line);continue;}
+      r.환불.push({날짜:p[0]||'',직원:p[1]||'',고객:p[2]||'',금액:p[3]||''});
     }
     else r.미인식.push(line);
   }
@@ -508,7 +521,7 @@ function buildSlots(id,d){
       </div>
       <div class="slot-body">
         <textarea class="slot-ta" id="mr-${i}"
-          placeholder="★금일완료&#10;결제완료/직원/고객/70&#10;미등록/직원/고객&#10;&#10;★금일예정&#10;진행중/직원/고객/반정규&#10;19:00/직원/고객/141/잔액(50%)&#10;19:00/직원/고객/20/미등록(50%)&#10;&#10;★이후 잔액 및 추가&#10;07.10/직원/고객/62/미등록(50%)"
+          placeholder="★금일완료&#10;결제완료/직원/고객/70&#10;미등록/직원/고객&#10;&#10;★금일예정&#10;진행중/직원/고객/반정규&#10;19:00/직원/고객/141/잔액(50%)&#10;19:00/직원/고객/20/미등록(50%)&#10;&#10;★이후 잔액 및 추가&#10;07.10/직원/고객/62/미등록(50%)&#10;&#10;★환불 예정건&#10;07.22/직원/고객/96"
           oninput="schedSave()">${e(m.raw)}</textarea>
         <div class="slot-acts">
           <button class="btn btn-p btn-sm" onclick="parseMb(${i})">⚡ 파싱</button>
@@ -565,12 +578,13 @@ function getDOMMembers(){
 }
 
 function mergeData(dataArr){
-  const m={완료:[],예정:[],이후:[]};
+  const m={완료:[],예정:[],이후:[],환불:[]};
   dataArr.forEach(d=>{
     if(!d)return;
     m.완료.push(...(d.완료||[]));
     m.예정.push(...(d.예정||[]));
     m.이후.push(...(d.이후||[]));
+    m.환불.push(...(d.환불||[]));
   });
   return m;
 }
@@ -633,6 +647,13 @@ function buildText(merged,n1,n2,meta){
   const sd=sortedDate(merged.이후);
   o+=sd.length
     ? sd.map(r=>`${r.날짜} ${r.직원}/${r.고객} ${r.금액} ${r.상태}`).join('\n')+'\n'
+    : '-\n';
+
+  /* ── 환불 예정건: 날짜순 ── */
+  o+='★환불 예정건\n';
+  const sr=sortedDate(merged.환불||[]);
+  o+=sr.length
+    ? sr.map(r=>`${r.날짜} ${r.직원}/${r.고객}${r.금액?' '+r.금액:''}`).join('\n')+'\n'
     : '-\n';
 
   return o.trimEnd();
